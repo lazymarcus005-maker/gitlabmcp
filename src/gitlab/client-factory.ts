@@ -37,6 +37,8 @@ export interface GitLabClient {
   postJson<T>(path: string, body: Record<string, unknown>, options?: CallOptions): Promise<T>;
   /** Performs an authenticated JSON PUT against GitLab API v4. */
   putJson<T>(path: string, body: Record<string, unknown>, options?: CallOptions): Promise<T>;
+  /** Performs an authenticated DELETE against GitLab API v4 (no body). */
+  deleteJson<T>(path: string, options?: CallOptions): Promise<T>;
   getRaw(path: string, options?: CallOptions): Promise<Response>;
 }
 
@@ -169,6 +171,12 @@ export function createGitLabClient(
         body: JSON.stringify(body),
       });
       return (await response.json()) as T;
+    },
+    async deleteJson<T>(path: string, options?: CallOptions): Promise<T> {
+      const response = await request(path, { ...options, method: "DELETE" });
+      // 204 No Content (GitLab link deletion) parses to undefined.
+      const text = await response.text();
+      return (text ? JSON.parse(text) : undefined) as T;
     },
     getRaw(path: string, options?: CallOptions): Promise<Response> {
       return request(path, options);
