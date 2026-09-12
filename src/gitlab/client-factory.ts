@@ -35,6 +35,8 @@ export interface GitLabClient {
   getWithHeaders<T>(path: string, options?: CallOptions): Promise<GitLabResponse<T>>;
   /** Performs an authenticated JSON POST against GitLab API v4. */
   postJson<T>(path: string, body: Record<string, unknown>, options?: CallOptions): Promise<T>;
+  /** Performs an authenticated JSON PUT against GitLab API v4. */
+  putJson<T>(path: string, body: Record<string, unknown>, options?: CallOptions): Promise<T>;
   getRaw(path: string, options?: CallOptions): Promise<Response>;
 }
 
@@ -152,6 +154,18 @@ export function createGitLabClient(
       const response = await request(path, {
         ...options,
         method: "POST",
+        body: JSON.stringify(body),
+      });
+      return (await response.json()) as T;
+    },
+    async putJson<T>(
+      path: string,
+      body: Record<string, unknown>,
+      options?: CallOptions,
+    ): Promise<T> {
+      const response = await request(path, {
+        ...options,
+        method: "PUT",
         body: JSON.stringify(body),
       });
       return (await response.json()) as T;
