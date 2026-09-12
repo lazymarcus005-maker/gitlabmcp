@@ -17,6 +17,10 @@ export interface GitLabClientOptions {
 export interface CallOptions {
   /** Per-call timeout override (e.g. config.jobTimeoutMs for job paths). */
   timeoutMs?: number;
+  /** HTTP method override (default GET). */
+  method?: string;
+  /** Serialized request body; implies Content-Type: application/json. */
+  body?: string;
 }
 
 export interface GitLabResponse<T> {
@@ -29,6 +33,8 @@ export interface GitLabClient {
   getJson<T>(path: string, options?: CallOptions): Promise<T>;
   /** GET returning the parsed body plus response headers (e.g. x-next-page). */
   getWithHeaders<T>(path: string, options?: CallOptions): Promise<GitLabResponse<T>>;
+  /** Performs an authenticated JSON POST against GitLab API v4. */
+  postJson<T>(path: string, body: Record<string, unknown>, options?: CallOptions): Promise<T>;
   getRaw(path: string, options?: CallOptions): Promise<Response>;
 }
 
@@ -86,7 +92,12 @@ export function createGitLabClient(
         Authorization: `Bearer ${ctx.gitlab.token}`,
         Accept: "application/json",
       },
+      method: options.method,
+      body: options.body,
     };
+    if (options.body !== undefined) {
+      init.headers = { ...init.headers, "Content-Type": "application/json" };
+    }
     if (timeoutMs !== undefined) {
       init.signal = AbortSignal.timeout(timeoutMs);
     }
@@ -132,6 +143,18 @@ export function createGitLabClient(
       const response = await request(path, options);
       const data = (await response.json()) as T;
       return { data, headers: response.headers };
+    },
+    async postJson<T>(
+      path: string,
+      body: Record<string, unknown>,
+      options?: CallOptions,
+    ): Promise<T> {
+      const response = await request(path, {
+        ...options,
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      return (await response.json()) as T;
     },
     getRaw(path: string, options?: CallOptions): Promise<Response> {
       return request(path, options);
