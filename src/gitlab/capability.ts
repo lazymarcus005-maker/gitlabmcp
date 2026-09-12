@@ -5,6 +5,7 @@
  * at call time with GITLAB_NOT_SUPPORTED.
  */
 import type { GitLabClient } from "./client-factory.js";
+import { redact } from "../security/redaction.js";
 
 let logged = false;
 /** Version observed from /api/v4/version; the "capabilities seen at startup" view. */
@@ -24,7 +25,9 @@ export function resetCapabilityLog(): void {
 }
 
 function emit(line: string): void {
-  process.stdout.write(`${line}\n`);
+  // NFR-1: every outbound log line passes through the redaction layer, even
+  // though no secret is expected in a capability log line.
+  process.stdout.write(`${redact(line) as string}\n`);
 }
 
 /**
