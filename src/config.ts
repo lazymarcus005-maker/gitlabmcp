@@ -19,6 +19,14 @@ export interface ServerConfig {
   /** Per-request GitLab timeout in ms (FR-14); 60 s for job.* paths. */
   timeoutMs: number;
   jobTimeoutMs: number;
+  /** Policy engine (§5, ADR-0002): read-only kill switch (NFR-3). */
+  readOnly: boolean;
+  /** Risk classes allowed by server policy; DESTRUCTIVE defaults to deny. */
+  allowedRiskClasses: string[];
+  /** Branch guardrails (FR-10): protected branches deny create and delete. */
+  protectedBranches: string[];
+  /** Branches that additionally deny direct delete. */
+  denyDirectDeleteBranches: string[];
 }
 
 function parseHostList(value: string | undefined): string[] {
@@ -58,5 +66,37 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // Timeouts (FR-14): 30 s default, 60 s for job.* paths.
     timeoutMs: positiveInt(env.GITLAB_MCP_TIMEOUT_MS, 30_000),
     jobTimeoutMs: positiveInt(env.GITLAB_MCP_JOB_TIMEOUT_MS, 60_000),
+    // Policy engine (§5): read-only kill switch, per-risk allow/deny,
+    // branch guardrails (FR-10 defaults: main, master, uat, production).
+    readOnly: parseBool(env.GITLAB_MCP_READ_ONLY, false),
+    allowedRiskClasses: parseRiskList(
+      env.GITLAB_MCP_RISK_ALLOW,
+      ["READ", "WRITE", "PRIVILEGED"],
+    ),
+    protectedBranches: parseRiskList(env.GITLAB_MCP_PROTECTED_BRANCHES, [
+      "main",
+      "master",
+      "uat",
+      "production",
+    ]),
+    denyDirectDeleteBranches: parseRiskList(env.GITLAB_MCP_DENY_DIRECT_DELETE, []),
   };
+}
+
+const RISK_CLASSES = ["READ", "WRITE", "PRIVILEGED", "DESTRUCTIVE"];
+
+/** Comma-separated uppercase list, validated against the risk vocabulary. */
+function parseRiskList(value: string | undefined, dflt: string[]): string[] {
+  if (value === undefined || value.trim() === "") return dflt;
+  const parts = value
+    .split(",")
+    .map((p) => p.trim().toUpperCase())
+    .filter((p) => p.length > 0);
+  const invalid = parts.filter((p) => !RISK_CLASSES.includes(p));
+  if (invalid.length > 0) {
+    throw new Error(
+      `invalid risk class(es): ${invalid.join(", ")} (expected subset of ${RISK_CLASSES.join(", ")})`,
+    );
+  }
+  return parts;
 }
