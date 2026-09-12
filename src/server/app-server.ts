@@ -6,6 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerSystemTools } from "../tools/system.js";
 import { registerProjectTools } from "../tools/project.js";
 import { registerIssueTools } from "../tools/issue.js";
+import { registerWorkItemTools } from "../tools/work-item.js";
 import { registerRepoTools } from "../tools/repo.js";
 import { registerMergeRequestTools } from "../tools/merge-request.js";
 import { registerPipelineTools } from "../tools/pipeline.js";
@@ -19,6 +20,7 @@ export function buildMcpServer(): McpServer {
   registerSystemTools(server);
   registerProjectTools(server);
   registerIssueTools(server);
+  registerWorkItemTools(server);
   registerRepoTools(server);
   registerMergeRequestTools(server);
   registerPipelineTools(server);
