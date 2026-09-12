@@ -10,6 +10,8 @@ import { loadConfig, type ServerConfig } from "../config.js";
 import { HostAllowlist } from "../security/host-allowlist.js";
 import { IdentityResolver } from "../security/identity.js";
 import { runWithRequestScope } from "../context/request-scope.js";
+import { createGitLabClient } from "../gitlab/client-factory.js";
+import { logCapabilityOnce } from "../gitlab/capability.js";
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -84,10 +86,26 @@ export function createHttpServer(config: ServerConfig = loadConfig()): Server {
 
 export function main(): void {
   const config = loadConfig();
+  const env = process.env;
   const httpServer = createHttpServer(config);
   httpServer.listen(config.port, () => {
     process.stdout.write(
       `${JSON.stringify({ msg: "gitlab-mcp listening", path: config.httpPath, port: config.port })}\n`,
     );
+    // Capability check (FR-16): log the GitLab version once at startup when
+    // ambient credentials are available via env (per-request creds otherwise).
+    const url = env.GITLAB_MCP_URL;
+    const token = env.GITLAB_MCP_TOKEN;
+    if (url && token) {
+      const client = createGitLabClient(
+        {
+          requestId: "startup",
+          gitlab: { baseUrl: url, token, tls: { verify: true } },
+          identity: { id: -1, username: "system" },
+        },
+        { timeoutMs: config.timeoutMs },
+      );
+      void logCapabilityOnce(client);
+    }
   });
 }
