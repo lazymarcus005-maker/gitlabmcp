@@ -1,0 +1,37 @@
+# Example ConfigMap: every value maps to a GITLAB_MCP_* env var (NFR-3).
+# Tokens are per-request via X-GitLab-Token headers — never put a token here.
+# Use a Secret + envFrom.secretRef if you need ambient credentials instead.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-mcp-config
+data:
+  # MCP endpoint
+  GITLAB_MCP_PORT: "8080"
+  GITLAB_MCP_HTTP_PATH: "/mcp"
+
+  # SSRF guard: hosts reachable via X-GitLab-URL
+  GITLAB_MCP_ALLOWED_HOSTS: "git.tiddaw.net,gitlab-uat.tiddaw.net"
+  GITLAB_MCP_ALLOW_CUSTOM_HOSTS: "false"
+
+  # TLS verification policy
+  GITLAB_MCP_ALLOW_DISABLE_VERIFY: "true"
+  GITLAB_MCP_DISABLE_VERIFY_HOSTS: "git.tiddaw.net,gitlab-uat.tiddaw.net"
+
+  # Audit (NFR-2): JSON lines on stdout, secrets redacted
+  GITLAB_MCP_AUDIT_DESTINATION: "stdout"
+  GITLAB_MCP_AUDIT_REDACT_SECRETS: "true"
+
+  # Policy: set "true" for the read-only kill switch (NFR-3)
+  GITLAB_MCP_READ_ONLY: "false"
+  GITLAB_MCP_RISK_ALLOW: "READ,WRITE,PRIVILEGED"
+  GITLAB_MCP_PROTECTED_BRANCHES: "main,master,uat,production"
+  GITLAB_MCP_DENY_DIRECT_DELETE: "main,master,production"
+
+  # Limits
+  GITLAB_MCP_PAGINATION_DEFAULT_LIMIT: "20"
+  GITLAB_MCP_PAGINATION_MAX_LIMIT: "100"
+  GITLAB_MCP_MAX_BYTES: "102400"
+  GITLAB_MCP_TIMEOUT_MS: "30000"
+  GITLAB_MCP_JOB_TIMEOUT_MS: "60000"
+  GITLAB_MCP_IDENTITY_CACHE_TTL_MS: "36000000"

@@ -6,7 +6,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./app-server.js";
-import { loadConfig, type ServerConfig } from "../config.js";
+import { describeConfig, loadConfig, type ServerConfig } from "../config.js";
 import { HostAllowlist } from "../security/host-allowlist.js";
 import { IdentityResolver } from "../security/identity.js";
 import { runWithRequestScope } from "../context/request-scope.js";
@@ -63,6 +63,13 @@ export function createHttpServer(config: ServerConfig = loadConfig()): Server {
       res.writeHead(405, { Allow: "POST" });
       res.end();
     };
+    // Plain liveness endpoint (NFR-4): outside the MCP handler, no auth,
+    // used by container HEALTHCHECK and k8s probes.
+    if (req.method === "GET" && req.url?.split("?")[0] === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
+      return;
+    }
     if (req.url?.split("?")[0] !== path) {
       res.writeHead(404);
       res.end();
@@ -89,9 +96,12 @@ export function main(): void {
   const env = process.env;
   const httpServer = createHttpServer(config);
   httpServer.listen(config.port, () => {
+    // Effective config, one JSON line, secrets redacted (NFR-3): no token
+    // values are ever part of ServerConfig (per-request credentials only).
     process.stdout.write(
       `${JSON.stringify({ msg: "gitlab-mcp listening", path: config.httpPath, port: config.port })}\n`,
     );
+    process.stdout.write(`${describeConfig(config)}\n`);
     // Capability check (FR-16): log the GitLab version once at startup when
     // ambient credentials are available via env (per-request creds otherwise).
     const url = env.GITLAB_MCP_URL;
