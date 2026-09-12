@@ -9,6 +9,7 @@ import { registerIssueTools } from "../tools/issue.js";
 import { registerRepoTools } from "../tools/repo.js";
 import { registerMergeRequestTools } from "../tools/merge-request.js";
 import { registerPipelineTools } from "../tools/pipeline.js";
+import { registerContentTools } from "../tools/content.js";
 
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
@@ -21,5 +22,6 @@ export function buildMcpServer(): McpServer {
   registerRepoTools(server);
   registerMergeRequestTools(server);
   registerPipelineTools(server);
+  registerContentTools(server);
   return server;
 }
