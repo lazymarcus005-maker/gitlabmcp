@@ -13,11 +13,29 @@ import { runWithRequestScope } from "../context/request-scope.js";
 import { createGitLabClient } from "../gitlab/client-factory.js";
 import { logCapabilityOnce } from "../gitlab/capability.js";
 
+/** Hard cap on request body size; anything larger is rejected (413). */
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+
+class BodyTooLargeError extends Error {}
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c: Buffer) => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    let size = 0;
+    let tooLarge = false;
+    req.on("data", (c: Buffer) => {
+      if (tooLarge) return; // keep consuming (discarded) so the client can finish
+      size += c.length;
+      if (size > MAX_BODY_BYTES) {
+        tooLarge = true;
+        chunks.length = 0;
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () =>
+      tooLarge ? reject(new BodyTooLargeError()) : resolve(Buffer.concat(chunks).toString("utf8")),
+    );
     req.on("error", reject);
   });
 }
@@ -58,7 +76,7 @@ export function createHttpServer(config: ServerConfig = loadConfig()): Server {
   const identityResolver = new IdentityResolver({ ttlMs: config.identityCacheTtlMs });
   const path = config.httpPath;
 
-  return createServer((req, res) => {
+  const httpServer = createServer((req, res) => {
     const send405 = () => {
       res.writeHead(405, { Allow: "POST" });
       res.end();
@@ -80,7 +98,14 @@ export function createHttpServer(config: ServerConfig = loadConfig()): Server {
       send405();
       return;
     }
-    handlePost(req, res, config, identityResolver, allowlist).catch(() => {
+    handlePost(req, res, config, identityResolver, allowlist).catch((error) => {
+      if (error instanceof BodyTooLargeError) {
+        if (!res.headersSent) {
+          res.writeHead(413, { "Content-Type": "application/json" });
+        }
+        res.end(JSON.stringify({ error: "request body too large" }));
+        return;
+      }
       if (!res.headersSent) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "internal error" }));
@@ -89,6 +114,18 @@ export function createHttpServer(config: ServerConfig = loadConfig()): Server {
       }
     });
   });
+
+  // Malformed or oversized headers must never crash the process; Node's
+  // default would surface a parser error, so respond 431 and destroy the
+  // socket (handled per-connection, server keeps serving).
+  httpServer.on("clientError", (err, socket) => {
+    if (socket.writable) {
+      socket.end("HTTP/1.1 431 Request Header Fields Too Large\r\n\r\n");
+    } else {
+      socket.destroy();
+    }
+  });
+  return httpServer;
 }
 
 export function main(): void {

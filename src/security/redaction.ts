@@ -3,21 +3,26 @@
  * from anything that is about to be logged.
  */
 const SECRET_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
-  // JSON-shaped keys: "authorization": "..."
+  // JSON-shaped keys: "authorization": "..." (incl. private_token,
+  // client_secret and other underscore/hyphen variants of the same names).
   {
-    pattern: /("(?:authorization|cookie|token|secret|password|api[-_]key|private[-_]key|access[-_]token)"\s*:\s*)"(?:[^"\\]|\\.)*"/gi,
+    pattern: /("(?:authorization|cookie|token|secret|password|api[-_]key|private[-_]key|access[-_]token|private[-_]token|client[-_]secret|refresh[-_]token|session)"\s*:\s*)"(?:[^"\\]|\\.)*"/gi,
+    replacement: '$1"[REDACTED]"',
+  },
+  // GitLab CI variable shape: {"key": "VAR_NAME", "value": "..."} — the
+  // value carries the secret, so it is redacted by shape, not by name.
+  {
+    pattern: /("key"\s*:\s*"(?:[^"\\]|\\.)*"\s*,\s*"value"\s*:\s*)"(?:[^"\\]|\\.)*"/gi,
     replacement: '$1"[REDACTED]"',
   },
   // GitLab PAT shapes and auth header schemes
   { pattern: /glpat-[A-Za-z0-9_-]{8,}/g, replacement: "[REDACTED]" },
-  { pattern: /(Bearer|Basic)\s+[A-Za-z0-9+/=._-]{8,}/gi, replacement: "$1 [REDACTED]" },
-  // key=value / key: value forms
+  { pattern: /(Bearer|Basic|PRIVATE-TOKEN)\s*[A-Za-z0-9+/=._-]{8,}/gi, replacement: "$1 [REDACTED]" },
+  // key=value / key: value forms. The key class swallows leading
+  // underscore/hyphen components (private_token, client_secret, …) so
+  // `\b` before the bare noun cannot miss `_`-joined names.
   {
-    pattern: /\b(authorization|cookie)\b\s*[:=]\s*[^\s"',}]+(\s+[^\s"',}]+)?/gi,
-    replacement: "$1: [REDACTED]",
-  },
-  {
-    pattern: /\b(token|pat|secret|password|api[-_]?key)\b\s*[:=]\s*[^\s"',}]+/gi,
+    pattern: /\b([A-Za-z_-]*(?:authorization|cookie|token|secret|password|api[-_]?key|api[-_]?token)[A-Za-z_-]*)\b\s*[:=]\s*[^\s"',}]+(\s+[^\s"',}]+)?/gi,
     replacement: "$1: [REDACTED]",
   },
 ];

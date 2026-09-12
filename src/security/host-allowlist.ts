@@ -35,6 +35,15 @@ export class HostAllowlist {
     }
     const host = parsed.host.toLowerCase(); // hostname[:port]
     const hostname = parsed.hostname.toLowerCase();
+    // Userinfo (https://token@git.example.com) is rejected outright: it is
+    // never a legitimate X-GitLab-URL form and would smuggle credentials
+    // into logs and error messages.
+    if (parsed.username !== "" || parsed.password !== "") {
+      throw new GatewayError(
+        ErrorCodes.GITLAB_HOST_NOT_ALLOWED,
+        "X-GitLab-URL must not contain userinfo credentials",
+      );
+    }
     const allowed = this.hostPorts.has(host) || this.bareHosts.has(hostname);
     if (!allowed) {
       throw new GatewayError(

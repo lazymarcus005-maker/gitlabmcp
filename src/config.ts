@@ -8,6 +8,7 @@
  */
 import { readFileSync, existsSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
+import { redact } from "./security/redaction.js";
 
 export interface ServerConfig {
   port: number;
@@ -225,5 +226,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
  * boundary for the startup log.
  */
 export function describeConfig(config: ServerConfig): string {
-  return JSON.stringify({ msg: "effective config", config });
+  // Redaction pass (NFR-1): config carries no credentials by design, but the
+  // startup log goes through the redaction layer anyway so that anything
+  // secret-shaped (e.g. a token pasted into an env var) never reaches stdout.
+  return redact(JSON.stringify({ msg: "effective config", config })) as string;
 }

@@ -60,6 +60,14 @@ export function parseGitLabHeaders(headers: HeaderBag): ParsedHeaders {
       "X-GitLab-URL must use http or https",
     );
   }
+  // Userinfo (https://token@git.example.com) is never a legitimate form and
+  // would smuggle credentials into logs/errors — reject it.
+  if (parsedUrl.username !== "" || parsedUrl.password !== "") {
+    throw new GatewayError(
+      ErrorCodes.VALIDATION_ERROR,
+      "X-GitLab-URL must not contain userinfo credentials",
+    );
+  }
 
   const token = getHeader(headers, "x-gitlab-token");
   if (!token) {
