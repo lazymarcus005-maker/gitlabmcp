@@ -12,6 +12,7 @@ export function registerSystemTools(server: McpServer): void {
       name: "gitlab_system_info",
       description: "Returns the GitLab version of the target instance.",
       schema: {},
+      policy: { riskClass: "READ" },
     },
     async (_ctx, _args, client) => {
       return client.getJson("/api/v4/version");
@@ -25,6 +26,7 @@ export function registerSystemTools(server: McpServer): void {
       description:
         "Returns the GitLab identity resolved from this request's token.",
       schema: {},
+      policy: { riskClass: "READ" },
     },
     async (ctx) => {
       return {
