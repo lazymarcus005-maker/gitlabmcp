@@ -51,7 +51,7 @@ export function registerTool<S extends ZodRawShape>(
         userId = ctx.identity.id;
         username = ctx.identity.username;
         requestId = ctx.requestId;
-        const client = createGitLabClient(ctx);
+        const client = createGitLabClient(ctx, { timeoutMs: scope.config.timeoutMs });
         const data = await handler(ctx, args, client);
         audit({
           scope,
