@@ -73,17 +73,26 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       env.GITLAB_MCP_RISK_ALLOW,
       ["READ", "WRITE", "PRIVILEGED"],
     ),
-    protectedBranches: parseRiskList(env.GITLAB_MCP_PROTECTED_BRANCHES, [
+    protectedBranches: parseBranchList(env.GITLAB_MCP_PROTECTED_BRANCHES, [
       "main",
       "master",
       "uat",
       "production",
     ]),
-    denyDirectDeleteBranches: parseRiskList(env.GITLAB_MCP_DENY_DIRECT_DELETE, []),
+    denyDirectDeleteBranches: parseBranchList(env.GITLAB_MCP_DENY_DIRECT_DELETE, []),
   };
 }
 
 const RISK_CLASSES = ["READ", "WRITE", "PRIVILEGED", "DESTRUCTIVE"];
+
+/** Comma-separated list of branch names, normalized to lowercase. */
+function parseBranchList(value: string | undefined, dflt: string[]): string[] {
+  if (value === undefined || value.trim() === "") return dflt;
+  return value
+    .split(",")
+    .map((p) => p.trim().toLowerCase())
+    .filter((p) => p.length > 0);
+}
 
 /** Comma-separated uppercase list, validated against the risk vocabulary. */
 function parseRiskList(value: string | undefined, dflt: string[]): string[] {
