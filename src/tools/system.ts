@@ -4,18 +4,32 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTool } from "./register.js";
+import {
+  getCapabilitySnapshot,
+  recordCapabilityVersion,
+} from "../gitlab/capability.js";
 
 export function registerSystemTools(server: McpServer): void {
   registerTool(
     server,
     {
       name: "gitlab_system_info",
-      description: "Returns the GitLab version of the target instance.",
+      description:
+        "Returns the GitLab version of the target instance plus the capabilities seen at startup.",
       schema: {},
       policy: { riskClass: "READ" },
     },
     async (_ctx, _args, client) => {
-      return client.getJson("/api/v4/version");
+      const version = await client.getJson<{
+        version?: string;
+        revision?: string;
+      }>("/api/v4/version");
+      if (version.version) recordCapabilityVersion(version.version);
+      return {
+        gitlab_version: version.version ?? "unknown",
+        revision: version.revision ?? null,
+        capabilities_seen_at_startup: getCapabilitySnapshot(),
+      };
     },
   );
 

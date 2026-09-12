@@ -10,7 +10,7 @@ import { resolveRequestContext } from "../security/gateway.js";
 import { evaluatePolicy, type PolicyTarget } from "../policy/policy-engine.js";
 import type { ToolPolicy } from "../policy/risk.js";
 import { auditToolCall } from "../audit/logger.js";
-import { GatewayError } from "../errors.js";
+import { GatewayError, ErrorCodes } from "../errors.js";
 import type { GitLabRequestContext } from "../context/request-context.js";
 import { getRequestScope } from "../context/request-scope.js";
 import { createGitLabClient } from "../gitlab/client-factory.js";
@@ -28,6 +28,25 @@ function hostOf(baseUrl: string): string {
 function stringArg(args: Record<string, unknown>, key: string): string | undefined {
   const value = args[key];
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+
+/**
+ * Resolves a tool's `project` argument with the request default fallback
+ * (FR-9). Missing everywhere is a VALIDATION_ERROR, matching the spec's
+ * `project` format rule.
+ */
+export function resolveProjectArg(
+  ctx: GitLabRequestContext,
+  args: Record<string, unknown>,
+): string {
+  const project = stringArg(args, "project") ?? ctx.defaults?.project;
+  if (!project) {
+    throw new GatewayError(
+      ErrorCodes.VALIDATION_ERROR,
+      "missing required argument 'project' (and no X-GitLab-Default-Project header)",
+    );
+  }
+  return project;
 }
 
 /**
@@ -65,9 +84,13 @@ export function registerTool<S extends ZodRawShape>(
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(options.name)) {
     throw new Error(`tool name violates MCP spec pattern: ${options.name}`);
   }
+  // Loose object so unknown keys survive SDK parsing and reach the wrapper,
+  // where they are rejected with the tool-result VALIDATION_ERROR contract
+  // (tool-spec §Input schema rules: no arbitrary GitLab API params in V1).
+  const allowedKeys = new Set(Object.keys(options.schema));
   server.registerTool(options.name, {
     description: options.description,
-    inputSchema: options.schema,
+    inputSchema: z.looseObject(options.schema),
   }, (async (args: Record<string, unknown>, _extra: unknown) => {
       const startedAt = Date.now();
       const scope = getRequestScope();
@@ -77,6 +100,13 @@ export function registerTool<S extends ZodRawShape>(
       let requestId = "unknown";
       let ctx: GitLabRequestContext | undefined;
       try {
+        const unknownArgs = Object.keys(args ?? {}).filter((k) => !allowedKeys.has(k));
+        if (unknownArgs.length > 0) {
+          throw new GatewayError(
+            ErrorCodes.VALIDATION_ERROR,
+            `unknown argument(s): ${unknownArgs.join(", ")}`,
+          );
+        }
         ctx = await resolveRequestContext();
         host = hostOf(ctx.gitlab.baseUrl);
         userId = ctx.identity.id;
