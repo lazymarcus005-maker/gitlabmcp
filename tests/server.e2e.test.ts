@@ -130,7 +130,7 @@ describe("POST /mcp end-to-end (stateless)", () => {
     const body = await readBody(res);
     const { text, isError } = textOf(body.result);
     expect(isError).toBe(false);
-    expect(JSON.parse(text)).toMatchObject({ version: "18.8.3-ee" });
+    expect(JSON.parse(text)).toMatchObject({ gitlab_version: "18.8.3-ee" });
     expect(versionCalls).toBe(1);
   });
 

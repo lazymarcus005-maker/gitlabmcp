@@ -7,6 +7,17 @@
 import type { GitLabClient } from "./client-factory.js";
 
 let logged = false;
+/** Version observed from /api/v4/version; the "capabilities seen at startup" view. */
+let lastSeenVersion: string | undefined;
+
+export function recordCapabilityVersion(version: string): void {
+  lastSeenVersion = version;
+}
+
+/** What the server has seen of the GitLab instance so far (never fatal). */
+export function getCapabilitySnapshot(): { version?: string } {
+  return { version: lastSeenVersion };
+}
 
 export function resetCapabilityLog(): void {
   logged = false;
@@ -29,6 +40,7 @@ export async function logCapabilityOnce(
   logged = true;
   try {
     const version = await client.getJson<{ version?: string }>("/api/v4/version");
+    lastSeenVersion = version.version ?? lastSeenVersion;
     log(
       JSON.stringify({
         msg: "gitlab capability check",
