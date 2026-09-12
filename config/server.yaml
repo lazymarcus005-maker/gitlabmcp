@@ -1,0 +1,75 @@
+# GitLab MCP — server config (example, V1)
+#
+# Env vars override / replace flat values (preferred on Kubernetes);
+# this file is for nested structures and non-K8s runs.
+# Kill switch: GITLAB_MCP_READ_ONLY=true denies everything above READ.
+
+server:
+  # MCP endpoint
+  port: 8080
+  http_path: /mcp
+  transport: streamable-http
+  stateless: true
+
+gitlab:
+  # SSRF guard: only these hosts may be targeted via X-GitLab-URL
+  allowed_hosts:
+    - git.tiddaw.net
+    - gitlab-uat.tiddaw.net
+  allow_custom_hosts: false
+
+security:
+  tls:
+    # X-GitLab-SSL-Verify: false is honored only for hosts listed here
+    allow_disable_verify: true
+    disable_verify_hosts:
+      - git.tiddaw.net
+      - gitlab-uat.tiddaw.net
+    # Preferred once the internal CA exists:
+    # hosts:
+    #   git.tiddaw.net:
+    #     ca_file: /certs/company-root-ca.pem
+
+  # Audit: JSON lines to stdout; secrets redacted
+  audit:
+    destination: stdout
+    redact_secrets: true
+
+policy:
+  operations:
+    read: allow
+    write: allow
+    privileged: allow
+    destructive: deny   # no destructive tools exposed in V1 anyway
+
+  branches:
+    protected:
+      - main
+      - master
+      - uat
+      - production
+    deny_direct_delete:
+      - main
+      - master
+      - production
+    # create-on-protected is denied for every branch in `protected`
+    # naming allowlist deferred to V2
+    # naming:
+    #   allow:
+    #     - "feature/*"
+    #     - "fix/*"
+    #     - "hotfix/*"
+
+limits:
+  pagination:
+    default_limit: 20
+    max_limit: 100
+  response:
+    max_bytes: 102400   # 100 KB; truncated responses set truncated: true
+  timeouts:
+    default_seconds: 30
+    job_seconds: 60
+
+# Identity cache: SHA-256(token) → identity, no tokens stored
+identity_cache:
+  ttl_hours: 10
